@@ -3,12 +3,17 @@
 namespace App\Controller;
 
 use App\Entity\Articles;
+use App\Entity\Comment;
 use App\Form\ArticleType;
+use App\Form\CommentType;
 use App\Repository\ArticlesRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -17,6 +22,8 @@ class BlogController extends AbstractController
 {
     /**
      * @Route("/blog", name="blog")
+     * @param ArticlesRepository $repo
+     * @return Response
      */
     public function index(ArticlesRepository $repo)
     {
@@ -44,9 +51,15 @@ class BlogController extends AbstractController
             'age' => 31
         ]);
     }
+
     /**
      * @Route("/blog/new", name="blog_create")
      * @Route("/blog/{id}/edit", name="blog_edit")
+     * @param Articles|null $article
+     * @param Request $request
+     * @param EntityManagerInterface $manager
+     * @return RedirectResponse|Response
+     * @throws Exception
      */
     public function form(Articles $article = null, Request $request, EntityManagerInterface $manager)
     {
@@ -64,12 +77,12 @@ class BlogController extends AbstractController
         $form = $this->createForm(ArticleType::class, $article);
 
         $form->handleRequest($request);
-        
+
         if ($form->isSubmitted() && $form->isValid()) {
             if (!$article->getId()) {
                 $article->setCreatedAt(new \DateTime());
             }
-            
+
             $manager->persist($article);
             $manager->flush();
             return $this->redirectToRoute('blog_show', ['id' => $article->getId()]);
@@ -81,15 +94,39 @@ class BlogController extends AbstractController
             'editMode' => $article->getId() !== null
         ]);
     }
+
     /**
      * @Route("/blog/{id}", name="blog_show")
+     * @param Articles $article
+     * @param Request $request
+     * @param EntityManagerInterface $manager
+     * @return RedirectResponse|Response
+     * @throws Exception
      */
-    public function show(ArticlesRepository $repo, $id)
+    public function show(Articles $article, Request $request, EntityManagerInterface $manager)
     {
+        $comment = new Comment();
+
+        $form = $this->createForm(CommentType::class, $comment);
+
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $comment->setCreatedAt(new \DateTime())
+                    ->setArticle($article);
+
+            $manager->persist($comment);
+            $manager->flush();
+
+            dump($comment);
+            return $this->redirectToRoute('blog_show', ['id' => $article->getId()]);
+            }
         // $repo = $this->getDoctrine()->getRepository(Articles::class);
-        $article = $repo->find($id);
+        // $article = $repo->find($id);
         return $this->render('blog/show.html.twig', [
-            'article' => $article
+            'article' => $article,
+            'commentForm' => $form->createView()
         ]);
     }
 }
+
